@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Upload Missing Person</title>
+</head>
+<body>
+    <h2>Upload Missing Person Details</h2>
+    <form action="{{ url_for('upload') }}" method="POST" enctype="multipart/form-data">
+        <label>Name:</label>
+        <input type="text" name="name" required><br><br>
+        
+        <label>Age:</label>
+        <input type="number" name="age" required><br><br>
+
+        <label>Last Seen Location:</label>
+        <input type="text" name="last_seen" required><br><br>
+
+        <label>Description:</label>
+        <textarea name="description" required></textarea><br><br>
+
+        <label>Upload Image:</label>
+        <input type="file" name="file" accept="image/*" required><br><br>
+
+        <button type="submit">Upload</button>
+    </form>
+    <br>
+    <a href="{{ url_for('detect') }}">Go to Real-Time Detection</a>python app.py
+</body>
+</html>

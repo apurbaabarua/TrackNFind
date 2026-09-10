@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Real-Time Detection</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            text-align: center;
+            margin: 20px;
+        }
+        video, img {
+            border: 4px solid black;
+            max-width: 100%;
+            display: block;
+            margin: auto;
+        }
+        #personDetails {
+            margin-top: 15px;
+            font-size: 18px;
+        }
+        button {
+            padding: 10px 20px;
+            font-size: 16px;
+            margin-top: 10px;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <h1>TrackNFind: Real-Time Detection</h1>
+
+    <video id="webcam" width="640" height="480" autoplay></video>
+    <img id="processedImage" style="display: none;" alt="Processed Frame">
+    <br>
+    <button id="startButton" onclick="startDetection()">Start Detection</button>
+    <p id="personDetails"></p>
+
+    <script>
+        const video = document.getElementById("webcam");
+        const processedImage = document.getElementById("processedImage");
+        let detectionActive = false;
+        
+        async function startWebcam() {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+                video.srcObject = stream;
+            } catch (error) {
+                alert("Failed to access the webcam. Please allow camera permissions.");
+            }
+        }
+
+        async function startDetection() {
+            detectionActive = true;
+            document.getElementById("startButton").disabled = true;
+            processFrame();
+        }
+
+        async function processFrame() {
+            if (!detectionActive) return;
+
+            try {
+                const canvas = document.createElement("canvas");
+                canvas.width = video.videoWidth;
+                canvas.height = video.videoHeight;
+                const ctx = canvas.getContext("2d");
+                ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+                const imageData = canvas.toDataURL("image/jpeg");
+
+                const response = await fetch('/process_webcam', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ image: imageData })
+                });
+
+                const data = await response.json();
+                
+                if (data.image) {
+                    processedImage.src = data.image;
+                    processedImage.style.display = "block";
+                    video.style.display = "none";
+                }
+
+                if (data.person_info) {
+                    document.getElementById('personDetails').innerHTML = `
+                        <strong style="color: green;">Match Found!</strong><br>
+                        <strong>Name:</strong> ${data.person_info.name}<br>
+                        <strong>Age:</strong> ${data.person_info.age}<br>
+                        <strong>Last Seen:</strong> ${data.person_info.last_seen}<br>
+                        <strong>Description:</strong> ${data.person_info.description}
+                    `;
+                    detectionActive = false;
+                } else {
+                    document.getElementById('personDetails').innerHTML = 
+                        "<strong style='color: red;'>No match found. Scanning...</strong>";
+                    setTimeout(processFrame, 500);
+                }
+            } catch (error) {
+                console.error("Error:", error);
+                detectionActive = false;
+            }
+        }
+
+        window.onload = startWebcam;
+    </script>
+    <br>
+    <a href="/result">See the Match Found</a>
+</body>
+</html>

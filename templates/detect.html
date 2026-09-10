@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Real-Time Detection</title>
+    <style>
+         body {
+            font-family: Arial, sans-serif;
+            text-align: center;
+            margin: 20px;
+            background: linear-gradient(135deg, #6d082a, #e5b1cb, #e5b1cb, #6d082a);
+        }
+        h1{
+color:#6d082a;
+        }
+        nav {
+            background-color: #333;
+            padding: 10px;
+        }
+        nav ul {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+            display: flex;
+            justify-content: center;
+        }
+        nav ul li {
+            margin: 0 15px;
+        }
+        nav ul li a {
+            color: white;
+            text-decoration: none;
+            font-size: 18px;
+        }
+        video, img {
+            border: 6px solid #333;
+            max-width: 54%;
+            width: 90vw;
+            height: 70vh;
+            display: block;
+            margin: auto;
+            border-radius: 20px;
+            box-shadow: 0px 6px 15px rgba(0, 0, 0, 0.4);
+            background-color:#e5b1cb;
+        }
+        #personDetails {
+            margin-top: 15px;
+            font-size: 18px;
+        }
+        button {
+            padding: 12px 25px;
+            font-size: 18px;
+            margin-top: 15px;
+            cursor: pointer;
+            background-color: #6d082a;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            transition: 0.3s;
+        }
+        button:hover {
+            background-color: #6d082a;
+        }
+    </style>
+</head>
+<body>
+    
+    <nav>
+    <ul>
+        <li><a href="{{ url_for('index') }}">Home</a></li>
+        <li><a href="{{ url_for('about') }}">About Us</a></li>
+        <li><a href="{{ url_for('report') }}">Report Case</a></li>
+        <li><a href="{{ url_for('detect') }}">Detection</a></li>
+    </ul>
+</nav>
+    
+    <h1>TrackNFind: Real-Time Detection</h1>
+
+    <video id="webcam" autoplay playsinline muted></video>
+    <img id="processedImage" style="display: none;" alt="Processed Frame">
+    <br>
+    <button id="startButton" onclick="startDetection()">Start Detection</button>
+    <p id="personDetails"></p>
+
+    <script>
+        const video = document.getElementById("webcam");
+        const processedImage = document.getElementById("processedImage");
+        let detectionActive = false;
+        
+        async function startWebcam() {
+            try {
+                if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                    throw new Error("Camera API not supported in this browser or environment (requires HTTPS).");
+                }
+                const stream = await navigator.mediaDevices.getUserMedia({ 
+                    video: { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: "user" } 
+                });
+                video.srcObject = stream;
+                await video.play();
+            } catch (error) {
+                console.error("Camera access error:", error);
+                document.getElementById('personDetails').innerHTML = 
+                    `<strong style="color: #721c24; background: #f8d7da; padding: 6px 12px; border-radius: 4px; display: inline-block;">
+                        Camera access error: ${error.message}. Please allow camera permissions in your browser.
+                    </strong>`;
+            }
+        }
+
+        async function startDetection() {
+            if (!video.videoWidth || !video.videoHeight) {
+                alert("Camera feed is not ready yet. Please ensure your webcam is allowed and active.");
+                return;
+            }
+            detectionActive = true;
+            document.getElementById("startButton").disabled = true;
+            document.getElementById("startButton").innerText = "Scanning active...";
+            processFrame();
+        }
+
+        async function processFrame() {
+            if (!detectionActive) return;
+
+            try {
+                const canvas = document.createElement("canvas");
+                canvas.width = video.videoWidth || 640;
+                canvas.height = video.videoHeight || 480;
+                const ctx = canvas.getContext("2d");
+                ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+                const imageData = canvas.toDataURL("image/jpeg", 0.7);
+
+                const response = await fetch('/process_webcam', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ image: imageData })
+                });
+
+                const data = await response.json();
+
+                if (!response.ok) {
+                    document.getElementById('personDetails').innerHTML = 
+                        `<strong style="color: #721c24; background: #f8d7da; padding: 6px 12px; border-radius: 4px; display: inline-block;">
+                            ${data.error || 'Server error during detection'}
+                        </strong>`;
+                    detectionActive = false;
+                    document.getElementById("startButton").disabled = false;
+                    document.getElementById("startButton").innerText = "Start Detection";
+                    return;
+                }
+                
+                if (data.image) {
+                    processedImage.src = data.image;
+                    processedImage.style.display = "block";
+                    video.style.display = "none";
+                }
+
+                if (data.person_info) {
+                    document.getElementById('personDetails').innerHTML = `
+                        <div style="background: rgba(255,255,255,0.9); padding: 15px; border-radius: 10px; display: inline-block; text-align: left; margin-top: 10px; box-shadow: 0 4px 10px rgba(0,0,0,0.15);">
+                            <strong style="color: green; font-size: 20px;">✓ Match Found!</strong><br>
+                            <strong>Name:</strong> ${data.person_info.name}<br>
+                            <strong>Age:</strong> ${data.person_info.age}<br>
+                            <strong>Last Seen:</strong> ${data.person_info.last_seen}<br>
+                            <strong>Description:</strong> ${data.person_info.description}
+                        </div>
+                    `;
+                    detectionActive = false;
+                    document.getElementById("startButton").disabled = false;
+                    document.getElementById("startButton").innerText = "Start Detection";
+                } else {
+                    document.getElementById('personDetails').innerHTML = 
+                        "<strong style='color: #6d082a; background: rgba(255,255,255,0.7); padding: 6px 12px; border-radius: 4px; display: inline-block;'>Scanning for match...</strong>";
+                    setTimeout(processFrame, 600);
+                }
+            } catch (error) {
+                console.error("Error:", error);
+                document.getElementById('personDetails').innerHTML = 
+                    `<strong style="color: red;">Error: ${error.message}</strong>`;
+                detectionActive = false;
+                document.getElementById("startButton").disabled = false;
+                document.getElementById("startButton").innerText = "Start Detection";
+            }
+        }
+
+        window.onload = startWebcam;
+    </script>
+</body>
+</html>
